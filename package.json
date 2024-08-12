@@ -1,0 +1,34 @@
+{
+  "name": "vending-machine-app",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "nuxt",
+    "build": "nuxt build",
+    "start": "nuxt start",
+    "generate": "nuxt generate"
+  },
+  "dependencies": {
+    "@nuxtjs/composition-api": "^0.34.0",
+    "axios": "^1.7.3",
+    "core-js": "^3.25.3",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "mysql2": "^3.11.0",
+    "nuxt": "^2.15.8",
+    "pug": "^3.0.2",
+    "pug-plain-loader": "^1.1.0",
+    "vue": "^2.7.10",
+    "vue-server-renderer": "^2.7.10",
+    "vue-template-compiler": "^2.7.10"
+  },
+  "devDependencies": {
+    "@nuxt/types": "^2.15.8",
+    "@nuxt/typescript-build": "^2.1.0",
+    "@types/axios": "^0.14.0",
+    "@types/babel__traverse": "^7.20.6",
+    "@types/node": "^22.2.0",
+    "sass": "^1.77.8",
+    "typescript": "^5.5.4"
+  }
+}
