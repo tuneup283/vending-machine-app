@@ -1,6 +1,10 @@
 <template>
   <div>
     <h1>Vending Machine</h1>
+      <!-- 管理ページへの遷移ボタン -->
+      <nuxt-link to="/admin">
+        <button>管理ページへ</button>
+      </nuxt-link>
     <div v-if="userMoney">
       <h2>Your Money:</h2>
       <p>10000 yen bills: {{ userMoney.yen_10000 }}</p>
@@ -75,7 +79,6 @@ interface Drink {
   id: number;
   name: string;
   type: string;
-  temperature: string;
   cost: number;
 }
 
@@ -131,7 +134,7 @@ export default defineComponent({
           axios.get('http://localhost:3001/api/drinks', {
             withCredentials: true
           }),
-          axios.get('http://localhost:3001/api/user_money', {
+          axios.get('http://localhost:3001/api/user', {
             withCredentials: true
           })
         ]);
@@ -169,7 +172,7 @@ export default defineComponent({
         alert(`Purchase successful. Your change: ${JSON.stringify(response.data.change)}`);
         
         // ユーザーの所持金を再取得して更新
-        const moneyResponse = await axios.get('http://localhost:3001/api/user_money', {
+        const moneyResponse = await axios.get('http://localhost:3001/api/user', {
           withCredentials: true
         });
         this.userMoney = moneyResponse.data;

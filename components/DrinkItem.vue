@@ -2,7 +2,6 @@
   <div class="drink-item">
     <h3>{{ drink.name }}</h3>
     <p>Type: {{ drink.type }}</p>
-    <p>Temperature: {{ drink.temperature }}</p>
     <p>Cost: ¥{{ drink.cost }}</p>
     <button @click="purchaseDrink" :disabled="isPurchasing">Purchase</button>
   </div>
@@ -58,3 +57,4 @@ button:disabled {
   cursor: not-allowed;
 }
 </style>
+
