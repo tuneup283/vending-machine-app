@@ -20,7 +20,7 @@
       <h3>Total Money: ¥{{ totalMoney }}</h3> <!-- 合計金額を表示 -->
     </div>
     <div v-if="casherMoney.length">
-      <h2>CasherMoney:</h2>
+      <h2>Your Money:</h2>
       <div v-for="money in casherMoney" :key="money.id">
         <p>¥{{ money.value }} - {{ money.quantity }}枚</p>
       </div>
@@ -175,7 +175,6 @@ export default defineComponent({
       totalCasherMoney
     }
   },
-
   methods: {
     async handlePurchase(drink: Drink) {
       if (!this.userMoney) {
@@ -184,10 +183,6 @@ export default defineComponent({
       }
 
       try {
-        // 更新前の所持金と釣り銭のデータを保存
-        const previousUserMoney = { ...this.userMoney };
-        const previousCasherMoney = this.casherMoney.map(money => ({ ...money }));
-
         const response = await axios.post('http://localhost:3001/api/purchase', {
           userId: 1,  // ユーザーIDを指定
           drinkId: drink.id,
@@ -202,63 +197,11 @@ export default defineComponent({
         const moneyResponse = await axios.get('http://localhost:3001/api/user', {
           withCredentials: true
         });
-
-        // 更新後の所持金
-        const updatedUserMoney = moneyResponse.data;
-
-        // 釣り銭のデータを再取得して更新
+        this.userMoney = moneyResponse.data;
         const casherResponse = await axios.get('http://localhost:3001/api/money', {
-          withCredentials
-          : true
+          withCredentials: true
         });
-
-        // 更新後の釣り銭のデータ
-        const updatedCasherMoney = casherResponse.data;
-
-        // 更新前と更新後の変化を計算 (ユーザーの所持金)
-        const moneyChange = {
-          yen_10000: updatedUserMoney.yen_10000 - previousUserMoney.yen_10000,
-          yen_5000: updatedUserMoney.yen_5000 - previousUserMoney.yen_5000,
-          yen_1000: updatedUserMoney.yen_1000 - previousUserMoney.yen_1000,
-          yen_500: updatedUserMoney.yen_500 - previousUserMoney.yen_500,
-          yen_100: updatedUserMoney.yen_100 - previousUserMoney.yen_100,
-          yen_50: updatedUserMoney.yen_50 - previousUserMoney.yen_50,
-          yen_10: updatedUserMoney.yen_10 - previousUserMoney.yen_10,
-          yen_5: updatedUserMoney.yen_5 - previousUserMoney.yen_5,
-          yen_1: updatedUserMoney.yen_1 - previousUserMoney.yen_1,
-        };
-
-        // 更新前と更新後の変化を計算 (釣り銭)
-        const casherChange = updatedCasherMoney.map((money: Money, index: number) => {
-          return {
-            value: money.value,
-            quantityChange: money.quantity - previousCasherMoney[index].quantity
-          };
-        });
-
-        // 所持金の変化を表示
-        alert(`Your money has changed:
-        10000 yen bills: ${previousUserMoney.yen_10000} -> ${updatedUserMoney.yen_10000} (Change: ${moneyChange.yen_10000})
-        5000 yen bills: ${previousUserMoney.yen_5000} -> ${updatedUserMoney.yen_5000} (Change: ${moneyChange.yen_5000})
-        1000 yen bills: ${previousUserMoney.yen_1000} -> ${updatedUserMoney.yen_1000} (Change: ${moneyChange.yen_1000})
-        500 yen coins: ${previousUserMoney.yen_500} -> ${updatedUserMoney.yen_500} (Change: ${moneyChange.yen_500})
-        100 yen coins: ${previousUserMoney.yen_100} -> ${updatedUserMoney.yen_100} (Change: ${moneyChange.yen_100})
-        50 yen coins: ${previousUserMoney.yen_50} -> ${updatedUserMoney.yen_50} (Change: ${moneyChange.yen_50})
-        10 yen coins: ${previousUserMoney.yen_10} -> ${updatedUserMoney.yen_10} (Change: ${moneyChange.yen_10})
-        5 yen coins: ${previousUserMoney.yen_5} -> ${updatedUserMoney.yen_5} (Change: ${moneyChange.yen_5})
-        1 yen coins: ${previousUserMoney.yen_1} -> ${updatedUserMoney.yen_1} (Change: ${moneyChange.yen_1})`);
-
-        // 釣り銭の変化を表示
-        let casherChangeMessage = "Casher money has changed:\n";
-        casherChange.forEach((change: { value: number; quantityChange: number }) => {
-          casherChangeMessage += `¥${change.value} coins/bills: ${previousCasherMoney.find((m: { value: number }) => m.value === change.value)?.quantity} -> ${updatedCasherMoney.find((m: { value: number }) => m.value === change.value)?.quantity} (Change: ${change.quantityChange})\n`;
-        });
-
-        alert(casherChangeMessage);
-
-        // 新しいデータを適用
-        this.userMoney = updatedUserMoney;
-        this.casherMoney = updatedCasherMoney;
+        this.casherMoney = casherResponse.data;
 
       } catch (error) {
         console.error("Failed to purchase:", error);

@@ -1,6 +1,8 @@
 const mysql = require('mysql2');
 const express = require('express');
 const cors = require('cors');
+const app = express();
+module.exports = app;  // appをエクスポート
 
 let serverStarted = false;
 
@@ -60,6 +62,8 @@ function startServer(connection) {
             const denominations = [10000, 5000, 1000, 500, 100, 50, 10, 5, 1];
             return sum + (count * denominations[index]);
           }, 0);
+          console.log('Total selected money:', totalSelectedMoney);
+
   
           if (totalSelectedMoney < drink.cost) {
             return connection.rollback(() => {
@@ -68,7 +72,8 @@ function startServer(connection) {
           }
   
           let change = totalSelectedMoney - drink.cost;
-  
+          console.log('Calculated change:', change);
+
           const userMoneyUpdate = {
             yen_10000: userMoney.yen_10000,
             yen_5000: userMoney.yen_5000,
@@ -99,7 +104,16 @@ function startServer(connection) {
             moneyResults.forEach((row) => {
               casherUpdate[row.value] = row.quantity;
             });
-  
+                      // 支払ったお金をキャッシャーに加算する処理を追加
+            Object.keys(selectedMoney).forEach((key) => {
+              const denom = parseInt(key.replace('yen_', ''));
+              if (casherUpdate[denom] !== undefined) {
+                casherUpdate[denom] += selectedMoney[key]; // 支払った金額をキャッシャーに加算
+              } else {
+                casherUpdate[denom] = selectedMoney[key]; // 新しい金額の場合は初期化
+              }
+            });
+            //お釣りの処理
             for (let i = 0; i < denominations.length; i++) {
               const denom = denominations[i];
               const changeCount = Math.floor(change / denom);
@@ -116,6 +130,8 @@ function startServer(connection) {
                 }
               }
             }
+            console.log('Casher update before database update:', casherUpdate);
+            console.log('Remaining change after processing:', change);
   
             if (change > 0) {
               return connection.rollback(() => {
@@ -127,20 +143,25 @@ function startServer(connection) {
               userMoneyUpdate[`yen_${item.denom}`] += item.count;
             });
   
-            const casherUpdates = changeArray.map((item) => {
+            const casherUpdates = Object.keys(casherUpdate).map((denom) => {
               return new Promise((resolve, reject) => {
                 connection.query(
                   'UPDATE Money SET quantity = ? WHERE value = ?',
-                  [casherUpdate[item.denom], item.denom],
-                  (updateErr) => {
+                  [casherUpdate[denom], denom],
+                  (updateErr, results) => {
                     if (updateErr) {
+                      console.error('Failed to update casher money for denomination:', denom, updateErr);
                       return reject(updateErr);
                     }
+                    // クエリが成功した場合のログを追加
+                    console.log('Updated casher money for denomination:', denom, 'with quantity:', casherUpdate[denom]);
+                    console.log('SQL affected rows:', results.affectedRows); // 影響を受けた行数を確認
                     resolve();
                   }
                 );
               });
             });
+            
   
             Promise.all(casherUpdates)
               .then(() => {
@@ -157,13 +178,22 @@ function startServer(connection) {
                         res.status(500).json({ error: 'Failed to commit transaction' });
                       });
                     }
-  
-                    res.json({ message: 'Purchase successful', change: changeArray });
-                  });
+                  
+                    // コミット後にデータベースの内容を再確認
+                    connection.query('SELECT * FROM Money', (checkErr, results) => {
+                      if (checkErr) {
+                        console.error('Failed to retrieve updated Money data:', checkErr);
+                      } else {
+                        console.log('Updated Money data after commit:', results);
+                      }
+                      res.json({ message: 'Purchase successful', change: changeArray });
+                    });
+                  });                  
                 });
               })
               .catch((err) => {
                 return connection.rollback(() => {
+                  console.error('Transaction rolled back due to insufficient change or another error');
                   res.status(500).json({ error: 'Failed to update casher money' });
                 });
               });
@@ -243,10 +273,11 @@ function startServer(connection) {
 
 function connectWithRetry() {
   const connection = mysql.createConnection({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
+    host: process.env.DB_HOST || 'localhost', // ホスト名を指定
+    user: process.env.DB_USER || 'root',       // ユーザー名を指定
+    password: process.env.DB_PASSWORD || 'password',  // パスワードを指定
+    database: process.env.DB_NAME || 'vending_machine', // データベース名を指定
+    charset: 'utf8mb4'  // エンコーディングを指定
   });
 
   connection.connect((err) => {
