@@ -70,7 +70,7 @@
 
     <div v-if="drinks.length">
       <div v-for="drink in drinks" :key="drink.id">
-        <DrinkItem :drink="drink" @purchase="handlePurchase" />
+        <DrinkList :drink="drink" @purchase="handlePurchase" />
       </div>
     </div>
     <div v-else>
@@ -81,7 +81,7 @@
 
 <script lang="ts">
 import { defineComponent, ref, computed, onMounted } from '@nuxtjs/composition-api'
-import DrinkItem from '~/components/DrinkItem.vue'
+import DrinkList from '~/components/DrinkList.vue'
 import axios from 'axios'
 
 interface Drink {
@@ -109,7 +109,7 @@ interface Money {
 }
 export default defineComponent({
   components: {
-    DrinkItem
+    DrinkList
   },
   setup() {
     const drinks = ref<Drink[]>([])

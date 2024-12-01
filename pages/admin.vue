@@ -53,7 +53,7 @@ export default {
         const response = await fetch('http://localhost:3001/api/drinks');
         this.drinks = await response.json();
       } catch (error) {
-        console.error('Failed to fetch drinks', error);
+        console.error('ドリンクの同期に失敗しました', error);
       }
     },
     async addDrink() {
@@ -66,7 +66,7 @@ export default {
         await this.fetchDrinks();
         this.newDrink = { name: '',  type: '',  cost: 0, stock: 0 };
       } catch (error) {
-        console.error('Failed to add drink', error);
+        console.error('ドリンクの追加に失敗しました', error);
       }
     },
     async editDrink(id) {
@@ -79,7 +79,7 @@ export default {
         });
         await this.fetchDrinks();
       } catch (error) {
-        console.error('Failed to edit drink', error);
+        console.error('ドリンクの変更に失敗しました', error);
       }
     }
   }

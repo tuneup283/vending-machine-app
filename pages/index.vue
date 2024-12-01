@@ -1,88 +1,86 @@
 <template>
   <div>
-    <h1>Vending Machine</h1>
-      <!-- 管理ページへの遷移ボタン -->
-      <nuxt-link to="/admin">
-        <button>管理ページへ</button>
-      </nuxt-link>
-    <div class="money-container">
-      <div v-if="userMoney">
-      <h2>Your Money:</h2>
-      <p>10000 yen bills: {{ userMoney.yen_10000 }}</p>
-      <p>5000 yen bills: {{ userMoney.yen_5000 }}</p>
-      <p>1000 yen bills: {{ userMoney.yen_1000 }}</p>
-      <p>500 yen coins: {{ userMoney.yen_500 }}</p>
-      <p>100 yen coins: {{ userMoney.yen_100 }}</p>
-      <p>50 yen coins: {{ userMoney.yen_50 }}</p>
-      <p>10 yen coins: {{ userMoney.yen_10 }}</p>
-      <p>5 yen coins: {{ userMoney.yen_5 }}</p>
-      <p>1 yen coins: {{ userMoney.yen_1 }}</p>
-      <h3>Total Money: ¥{{ totalMoney }}</h3> <!-- 合計金額を表示 -->
-    </div>
-    <div v-if="casherMoney.length">
-      <h2>CasherMoney:</h2>
-      <div v-for="money in casherMoney" :key="money.id">
-        <p>¥{{ money.value }} - {{ money.quantity }}枚</p>
-      </div>
-      <h3>Total Money: ¥{{ totalCasherMoney }}</h3> <!-- 合計金額を表示 -->
-    </div>
-    </div>
-    
-    <div v-if="selectedMoney">
-      <h2>Select Money to Use:</h2>
-      <div>
-        <label>10000 yen bills: </label>
-        <input type="number" v-model.number="selectedMoney.yen_10000" min="0" max="userMoney.yen_10000" />
-      </div>
-      <div>
-        <label>5000 yen bills: </label>
-        <input type="number" v-model.number="selectedMoney.yen_5000" min="0" max="userMoney.yen_5000" />
-      </div>
-      <div>
-        <label>1000 yen bills: </label>
-        <input type="number" v-model.number="selectedMoney.yen_1000" min="0" max="userMoney.yen_1000" />
-      </div>
-      <div>
-        <label>500 yen coins: </label>
-        <input type="number" v-model.number="selectedMoney.yen_500" min="0" max="userMoney.yen_500" />
-      </div>
-      <div>
-        <label>100 yen coins: </label>
-        <input type="number" v-model.number="selectedMoney.yen_100" min="0" max="userMoney.yen_100" />
-      </div>
-      <div>
-        <label>50 yen coins: </label>
-        <input type="number" v-model.number="selectedMoney.yen_50" min="0" max="userMoney.yen_50" />
-      </div>
-      <div>
-        <label>10 yen coins: </label>
-        <input type="number" v-model.number="selectedMoney.yen_10" min="0" max="userMoney.yen_10" />
-      </div>
-      <div>
-        <label>5 yen coins: </label>
-        <input type="number" v-model.number="selectedMoney.yen_5" min="0" max="userMoney.yen_5" />
-      </div>
-      <div>
-        <label>1 yen coins: </label>
-        <input type="number" v-model.number="selectedMoney.yen_1" min="0" max="userMoney.yen_1" />
-      </div>
-    </div>
+    <h1>自動販売機</h1>
+    <nuxt-link to="/admin">
+      <button>管理ページへ</button>
+    </nuxt-link>
 
-    <div v-if="drinks.length">
+    <div v-if="drinks.length" class="items-column">
       <div v-for="drink in drinks" :key="drink.id">
-        <DrinkItem :drink="drink" @purchase="handlePurchase" />
+        <DrinkList :drink="drink" @purchase="handlePurchase" />
       </div>
     </div>
     <div v-else>
-      <p>Loading...</p>
+      <p>読み込み中...</p>
+    </div>
+
+    <div class="money-container">
+      <div v-if="userMoney.length">
+        <h2>所持金：</h2>
+        <table class="money-table">
+          <thead>
+            <tr>
+              <th>金額</th>
+              <th>枚数</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="usermoney in userMoney" :key="usermoney.id">
+              <td>¥{{ usermoney.value }}</td>
+              <td>{{ usermoney.quantity }} 枚</td>
+            </tr>
+          </tbody>
+        </table>
+        <h3>合計金額: ¥{{ totalUserMoney }}</h3>
+      </div>
+
+      <div v-if="selectedMoney">
+        <h2>投入金額:</h2>
+        <table class="money-table">
+          <thead>
+            <tr>
+              <th>金額</th>
+              <th>枚数</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(value, key) in selectedMoney" :key="key">
+              <td>¥{{ key }}</td>
+              <td><input type="number" v-model.number="selectedMoney[key]" min="0" :max="getMaxQuantity(key)" /></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div v-if="casherMoney.length">
+        <h2>キャッシャー金額:</h2>
+        <table class="money-table">
+          <thead>
+            <tr>
+              <th>金額</th>
+              <th>枚数</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="money in casherMoney" :key="money.id">
+              <td>¥{{ money.value }}</td>
+              <td>{{ money.quantity }} 枚</td>
+            </tr>
+          </tbody>
+        </table>
+        <h3>合計金額: ¥{{ totalCasherMoney }}</h3>
+      </div>
     </div>
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed, onMounted } from '@nuxtjs/composition-api'
-import DrinkItem from '~/components/DrinkItem.vue'
-import axios from 'axios'
+import { defineComponent, ref, computed, onMounted } from '@nuxtjs/composition-api';
+import axios from 'axios';
+import DrinkList from '../components/DrinkList.vue';
+import UserMoney from '../components/UserMoney.vue';
+import SelectedMoney from '../components/SelectedMoney.vue';
+import CasherMoney from '../components/CasherMoney.vue';
 
 interface Drink {
   id: number;
@@ -91,211 +89,133 @@ interface Drink {
   cost: number;
 }
 
-interface UserMoney {
-  yen_10000: number;
-  yen_5000: number;
-  yen_1000: number;
-  yen_500: number;
-  yen_100: number;
-  yen_50: number;
-  yen_10: number;
-  yen_5: number;
-  yen_1: number;
-}
 interface Money {
   id: number;
   value: number;
   quantity: number;
 }
-export default defineComponent({
+
+
+export default {
   components: {
-    DrinkItem
+    DrinkList,
+    UserMoney,
+    SelectedMoney,
+    CasherMoney,
   },
   setup() {
-    const drinks = ref<Drink[]>([])
-    const userMoney = ref<UserMoney | null>(null)
-    const selectedMoney = ref<UserMoney>({
-      yen_10000: 0,
-      yen_5000: 0,
-      yen_1000: 0,
-      yen_500: 0,
-      yen_100: 0,
-      yen_50: 0,
-      yen_10: 0,
-      yen_5: 0,
-      yen_1: 0
-    })
+    const drinks = ref<Drink[]>([]);
+    const userMoney = ref<Money[]>([]);
     const casherMoney = ref<Money[]>([]);
-
-    const totalCasherMoney = computed(() => {
-      return casherMoney.value.reduce((total, money) => {
-        return total + (money.value * money.quantity);
-      }, 0);
-    });
-    const totalMoney = computed(() => {
-      if (!userMoney.value) return 0; // userMoneyがnullの場合は0を返す
-      return (
-        (userMoney.value.yen_10000 || 0) * 10000 +
-        (userMoney.value.yen_5000 || 0) * 5000 +
-        (userMoney.value.yen_1000 || 0) * 1000 +
-        (userMoney.value.yen_500 || 0) * 500 +
-        (userMoney.value.yen_100 || 0) * 100 +
-        (userMoney.value.yen_50 || 0) * 50 +
-        (userMoney.value.yen_10 || 0) * 10 +
-        (userMoney.value.yen_5 || 0) * 5 +
-        (userMoney.value.yen_1 || 0) * 1
-      );
+    const selectedMoney = ref<Record<number, number>>({
+      10000: 0,
+      5000: 0,
+      1000: 0,
+      500: 0,
+      100: 0,
+      50: 0,
+      10: 0,
+      5: 0,
+      1: 0,
     });
 
-    onMounted(async () => {
+    const totalCasherMoney = computed(() =>
+      casherMoney.value.reduce((total, money) => total + money.value * money.quantity, 0)
+    );
+    const totalUserMoney = computed(() =>
+      userMoney.value.reduce((total, money) => total + money.value * money.quantity, 0)
+    );
+    const getMaxQuantity = (key: number) =>
+      userMoney.value.find((money) => money.value === key)?.quantity || 0;
+
+    const fetchData = async () => {
       try {
-        const [drinksResponse, moneyResponse] = await Promise.all([
-          axios.get('http://localhost:3001/api/drinks', {
-            withCredentials: true
-          }),
-          axios.get('http://localhost:3001/api/user', {
-            withCredentials: true
-          })
+        const [drinksResponse, casherResponse, userResponse] = await Promise.all([
+          axios.get('http://localhost:3001/api/drinks', { withCredentials: true }),
+          axios.get('http://localhost:3001/api/money', { withCredentials: true }),
+          axios.get('http://localhost:3001/api/user_money', { withCredentials: true }),
         ]);
-        const casherResponse = await axios.get('http://localhost:3001/api/money', { withCredentials: true });
-        casherMoney.value = casherResponse.data;
         drinks.value = drinksResponse.data;
-        userMoney.value = moneyResponse.data;
+        casherMoney.value = casherResponse.data;
+        userMoney.value = userResponse.data;
       } catch (error) {
-        console.error("Failed to fetch data:", error);
+        console.error('データの取得に失敗しました:', error);
       }
-    })
+    };
+
+    const handlePurchase = async (drink: Drink) => {
+      try {
+        const response = await axios.post(
+          'http://localhost:3001/api/purchase',
+          {
+            userId: 1,
+            drinkId: drink.id,
+            selectedMoney: selectedMoney.value,
+          },
+          { withCredentials: true }
+        );
+        alert(`購入が成功しました。お釣り: ${JSON.stringify(response.data.change)}`);
+        fetchData();
+      } catch (error) {
+        console.error('購入エラー:', error);
+        alert('購入に失敗しました');
+      }
+    };
+
+    onMounted(fetchData);
 
     return {
       drinks,
       userMoney,
-      selectedMoney,
-      totalMoney, // 合計金額を返す
       casherMoney,
-      totalCasherMoney
-    }
+      selectedMoney,
+      totalUserMoney,
+      totalCasherMoney,
+      handlePurchase,
+      getMaxQuantity,
+    };
   },
-
-  methods: {
-    async handlePurchase(drink: Drink) {
-      if (!this.userMoney) {
-        alert("User money data is not available");
-        return;
-      }
-
-      try {
-        // 更新前の所持金と釣り銭のデータを保存
-        const previousUserMoney = { ...this.userMoney };
-        const previousCasherMoney = this.casherMoney.map(money => ({ ...money }));
-
-        const response = await axios.post('http://localhost:3001/api/purchase', {
-          userId: 1,  // ユーザーIDを指定
-          drinkId: drink.id,
-          selectedMoney: this.selectedMoney
-        }, {
-          withCredentials: true
-        });
-
-        alert(`Purchase successful. Your change: ${JSON.stringify(response.data.change)}`);
-        
-        // ユーザーの所持金を再取得して更新
-        const moneyResponse = await axios.get('http://localhost:3001/api/user', {
-          withCredentials: true
-        });
-
-        // 更新後の所持金
-        const updatedUserMoney = moneyResponse.data;
-
-        // 釣り銭のデータを再取得して更新
-        const casherResponse = await axios.get('http://localhost:3001/api/money', {
-          withCredentials
-          : true
-        });
-
-        // 更新後の釣り銭のデータ
-        const updatedCasherMoney = casherResponse.data;
-
-        // 更新前と更新後の変化を計算 (ユーザーの所持金)
-        const moneyChange = {
-          yen_10000: updatedUserMoney.yen_10000 - previousUserMoney.yen_10000,
-          yen_5000: updatedUserMoney.yen_5000 - previousUserMoney.yen_5000,
-          yen_1000: updatedUserMoney.yen_1000 - previousUserMoney.yen_1000,
-          yen_500: updatedUserMoney.yen_500 - previousUserMoney.yen_500,
-          yen_100: updatedUserMoney.yen_100 - previousUserMoney.yen_100,
-          yen_50: updatedUserMoney.yen_50 - previousUserMoney.yen_50,
-          yen_10: updatedUserMoney.yen_10 - previousUserMoney.yen_10,
-          yen_5: updatedUserMoney.yen_5 - previousUserMoney.yen_5,
-          yen_1: updatedUserMoney.yen_1 - previousUserMoney.yen_1,
-        };
-
-        // 更新前と更新後の変化を計算 (釣り銭)
-        const casherChange = updatedCasherMoney.map((money: Money, index: number) => {
-          return {
-            value: money.value,
-            quantityChange: money.quantity - previousCasherMoney[index].quantity
-          };
-        });
-
-        // 所持金の変化を表示
-        alert(`Your money has changed:
-        10000 yen bills: ${previousUserMoney.yen_10000} -> ${updatedUserMoney.yen_10000} (Change: ${moneyChange.yen_10000})
-        5000 yen bills: ${previousUserMoney.yen_5000} -> ${updatedUserMoney.yen_5000} (Change: ${moneyChange.yen_5000})
-        1000 yen bills: ${previousUserMoney.yen_1000} -> ${updatedUserMoney.yen_1000} (Change: ${moneyChange.yen_1000})
-        500 yen coins: ${previousUserMoney.yen_500} -> ${updatedUserMoney.yen_500} (Change: ${moneyChange.yen_500})
-        100 yen coins: ${previousUserMoney.yen_100} -> ${updatedUserMoney.yen_100} (Change: ${moneyChange.yen_100})
-        50 yen coins: ${previousUserMoney.yen_50} -> ${updatedUserMoney.yen_50} (Change: ${moneyChange.yen_50})
-        10 yen coins: ${previousUserMoney.yen_10} -> ${updatedUserMoney.yen_10} (Change: ${moneyChange.yen_10})
-        5 yen coins: ${previousUserMoney.yen_5} -> ${updatedUserMoney.yen_5} (Change: ${moneyChange.yen_5})
-        1 yen coins: ${previousUserMoney.yen_1} -> ${updatedUserMoney.yen_1} (Change: ${moneyChange.yen_1})`);
-
-        // 釣り銭の変化を表示
-        let casherChangeMessage = "Casher money has changed:\n";
-        casherChange.forEach((change: { value: number; quantityChange: number }) => {
-          casherChangeMessage += `¥${change.value} coins/bills: ${previousCasherMoney.find((m: { value: number }) => m.value === change.value)?.quantity} -> ${updatedCasherMoney.find((m: { value: number }) => m.value === change.value)?.quantity} (Change: ${change.quantityChange})\n`;
-        });
-
-        alert(casherChangeMessage);
-
-        // 新しいデータを適用
-        this.userMoney = updatedUserMoney;
-        this.casherMoney = updatedCasherMoney;
-
-      } catch (error) {
-        console.error("Failed to purchase:", error);
-        alert("Failed to purchase");
-      }
-    }
-  }
-})
+};
 </script>
 
 <style scoped>
-h1 {
-  text-align: center;
-}
-
-h2, h3 {
-  text-align: center;
-  margin: 10px 0;
-}
-
-p {
-  text-align: center;
-}
-
-input {
-  width: 50px;
-  margin: 5px;
+.items-column {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .money-container {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-around;
-  align-items: flex-start;
+}
+
+h1 {
+  text-align: center;
+}
+
+button {
+  margin-bottom: 20px;
+}
+
+.money-table {
+  width: 100%;
+  border-collapse: collapse;
   margin: 20px 0;
 }
 
-.money-section {
-  width: 45%; /* 各セクションの幅を設定 */
+.money-table th,
+.money-table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: center;
+}
+
+.money-table th {
+  background-color: #f2f2f2;
+}
+.items-column>div{
+  width: 15%;
 }
 </style>

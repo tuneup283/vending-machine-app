@@ -1,9 +1,9 @@
 <template>
-  <div class="drink-item">
+  <div :class="['drink-item', { 'out-of-stock': drink.stock === 0 }]">
     <h3>{{ drink.name }}</h3>
-    <p>Type: {{ drink.type }}</p>
-    <p>Cost: ¥{{ drink.cost }}</p>
-    <button @click="purchaseDrink" :disabled="isPurchasing">Purchase</button>
+    <p>種類: {{ drink.type }}</p>
+    <p>価格: ¥{{ drink.cost }}</p>
+    <button @click="purchaseDrink" :disabled="isPurchasing || drink.stock === 0">購入</button>
   </div>
 </template>
 
@@ -43,6 +43,10 @@ export default defineComponent({
   text-align: center;
 }
 
+.drink-item.out-of-stock {
+  background-color: #f0f0f0; /* Grey background for out-of-stock items */
+}
+
 button {
   padding: 8px 16px;
   background-color: #007bff;
@@ -57,4 +61,3 @@ button:disabled {
   cursor: not-allowed;
 }
 </style>
-

@@ -2,12 +2,8 @@ const mysql = require('mysql2');
 const express = require('express');
 const cors = require('cors');
 const app = express();
-module.exports = app;  // appをエクスポート
-
-let serverStarted = false;
 
 function startServer(connection) {
-  const app = express();
 
   app.use(cors({
     origin: 'http://localhost:3000',
@@ -21,7 +17,7 @@ function startServer(connection) {
   app.get('/api/drinks', (req, res) => {
     connection.query('SELECT * FROM drinks', (error, results) => {
       if (error) {
-        res.status(500).json({ error: 'Database query failed' });
+        res.status(500).json({ error: 'データベースのクエリに失敗しました' });
       } else {
         res.json(results);
       }
@@ -29,189 +25,215 @@ function startServer(connection) {
   });
 
   app.post('/api/purchase', (req, res) => {
-    const { userId, drinkId, selectedMoney } = req.body;
-  
+    console.log('Request received at /api/purchase:', req.body);  // リクエストが届いたか確認
+    const { drinkId, selectedMoney } = req.body;
     if (!selectedMoney || typeof selectedMoney !== 'object') {
-      console.error('selectedMoney is invalid:', selectedMoney);
-      return res.status(400).json({ error: 'Invalid selectedMoney data' });
+      console.error('無効な金額:', selectedMoney);
+      return res.status(400).json({ error: '無効な金額データ' });
     }
-  
-    connection.beginTransaction((transactionErr) => {
-      if (transactionErr) {
-        return res.status(500).json({ error: 'Failed to start transaction' });
+
+    connection.beginTransaction((err) => {
+      if (err) {
+        console.error('トランザクションの開始に失敗しました:', err);
+        return res.status(500).json({ error: 'トランザクションの開始に失敗しました', details: err.message });
       }
-  
-      connection.query('SELECT * FROM user WHERE id = ?', [userId], (userErr, userResults) => {
-        if (userErr) {
-          return connection.rollback(() => {
-            res.status(500).json({ error: 'Failed to retrieve user data' });
-          });
+
+      // ユーザーの所持金を取得
+      connection.query('SELECT * FROM user_money', (err, userMoney) => {
+        if (err) {
+          console.error('ユーザーの所持金の取得に失敗しました:', err);
+          return connection.rollback(() => res.status(500).json({ error: 'ユーザーの所持金の取得に失敗しました', details: err.message }));
         }
-  
-        const userMoney = userResults[0];
-  
-        connection.query('SELECT * FROM drinks WHERE id = ?', [drinkId], (drinkErr, drinkResults) => {
-          if (drinkErr) {
-            return connection.rollback(() => {
-              res.status(500).json({ error: 'Failed to retrieve drink data' });
-            });
+
+        // 飲み物情報を取得
+        connection.query('SELECT * FROM drinks WHERE id = ?', [drinkId], (err, drinkData) => {
+          if (err) {
+            console.error('飲み物の取得に失敗しました:', err);
+            return connection.rollback(() => res.status(500).json({ error: '飲み物の取得に失敗しました', details: err.message }));
           }
-  
-          const drink = drinkResults[0];
-          const totalSelectedMoney = Object.values(selectedMoney).reduce((sum, count, index) => {
-            const denominations = [10000, 5000, 1000, 500, 100, 50, 10, 5, 1];
-            return sum + (count * denominations[index]);
+          const drink = drinkData[0];
+            // 在庫の確認
+          if (drink.stock <= 0) {
+            console.error('在庫がありません');
+            return connection.rollback(() => res.status(400).json({ error: '在庫がありません' }));
+          }
+          const totalMoney = Object.values(selectedMoney).reduce((sum, count, index) => {
+            const coins = [1,5,10,50,100,500,1000,5000,10000];
+            return sum + count * coins[index];
           }, 0);
-          console.log('Total selected money:', totalSelectedMoney);
-
-  
-          if (totalSelectedMoney < drink.cost) {
-            return connection.rollback(() => {
-              res.status(400).json({ error: 'Insufficient funds' });
-            });
-          }
-  
-          let change = totalSelectedMoney - drink.cost;
-          console.log('Calculated change:', change);
-
-          const userMoneyUpdate = {
-            yen_10000: userMoney.yen_10000,
-            yen_5000: userMoney.yen_5000,
-            yen_1000: userMoney.yen_1000,
-            yen_500: userMoney.yen_500,
-            yen_100: userMoney.yen_100,
-            yen_50: userMoney.yen_50,
-            yen_10: userMoney.yen_10,
-            yen_5: userMoney.yen_5,
-            yen_1: userMoney.yen_1,
-          };
-  
-          Object.keys(selectedMoney).forEach((key) => {
-            userMoneyUpdate[key] -= selectedMoney[key];
-          });
-  
-          const changeArray = [];
-          const denominations = [10000, 5000, 1000, 500, 100, 50, 10, 5, 1];
-  
-          connection.query('SELECT * FROM Money', (moneyErr, moneyResults) => {
-            if (moneyErr) {
-              return connection.rollback(() => {
-                res.status(500).json({ error: 'Failed to retrieve casher data' });
-              });
-            }
-  
-            const casherUpdate = {};
-            moneyResults.forEach((row) => {
-              casherUpdate[row.value] = row.quantity;
-            });
-                      // 支払ったお金をキャッシャーに加算する処理を追加
-            Object.keys(selectedMoney).forEach((key) => {
-              const denom = parseInt(key.replace('yen_', ''));
-              if (casherUpdate[denom] !== undefined) {
-                casherUpdate[denom] += selectedMoney[key]; // 支払った金額をキャッシャーに加算
-              } else {
-                casherUpdate[denom] = selectedMoney[key]; // 新しい金額の場合は初期化
+          console.log("Total Money:", totalMoney);  // ターミナルに出力
+          
+          if (totalMoney < drink.cost) {
+            const shortage = drink.cost - totalMoney;
+            connection.rollback((rollbackErr) => {
+              if (rollbackErr) {
+                console.error('ロールバックに失敗しました:', rollbackErr);
+                return res.status(500).json({ error: 'ロールバックに失敗しました', details: rollbackErr.message });
               }
+              res.status(400).json({ 
+                error: '金額が足りません', 
+                details: `現在の投入金額: ${totalMoney}円、不足金額: ${shortage}円`
+              });
             });
-            //お釣りの処理
-            for (let i = 0; i < denominations.length; i++) {
-              const denom = denominations[i];
-              const changeCount = Math.floor(change / denom);
-  
-              if (changeCount > 0) {
-                if (casherUpdate[denom] >= changeCount) {
-                  casherUpdate[denom] -= changeCount;
-                  changeArray.push({ denom, count: changeCount });
-                  change -= changeCount * denom;
-                } else if (casherUpdate[denom] > 0) {
-                  change -= casherUpdate[denom] * denom;
-                  changeArray.push({ denom, count: casherUpdate[denom] });
-                  casherUpdate[denom] = 0;
+          }          
+
+          let change = totalMoney - drink.cost;
+          const userUpdate = {};
+          userMoney.forEach((row) => {
+            userUpdate[row.value] = row.quantity;
+          });
+
+          // 支払い分をユーザーの所持金から引く
+          Object.keys(selectedMoney).forEach((value) => {
+            const coin = parseInt(value);
+            if (isNaN(coin)) {
+              console.error(`無効な硬貨の値です: ${value}`);
+              return connection.rollback(() => res.status(400).json({ error: '無効な硬貨の値です' }));
+            }
+
+            // 支払い前にユーザーの所持金をチェックし、足りなければ処理を中断
+            if (userUpdate[coin] < selectedMoney[value]) {
+              console.error(`硬貨が不足しています。値: ${coin}, 必要: ${selectedMoney[value]}, 所持: ${userUpdate[coin]}`);
+              return connection.rollback(() => res.status(400).json({ error: `硬貨が不足しています: ${coin}` }));
+            }
+
+            // 所持金から支払い分を引く
+            userUpdate[coin] -= selectedMoney[value];
+          });
+
+          const changeArray = [];
+          const coins = [10000, 5000, 1000, 500, 100, 50, 10, 5, 1];
+
+          // キャッシャーのデータを取得
+          connection.query('SELECT * FROM Money', (err, cashData) => {
+            if (err) {
+              console.error('キャッシャーデータの取得に失敗しました:', err);
+              return connection.rollback(() => res.status(500).json({ error: 'キャッシャーデータの取得に失敗しました', details: err.message }));
+            }
+
+            const casher = {};
+            cashData.forEach((row) => {
+              casher[row.value] = row.quantity;
+            });
+
+            // 支払い金額をキャッシャーに加算
+            Object.keys(selectedMoney).forEach((value) => {
+              const coin = parseInt(value);
+              if (isNaN(coin)) {
+                console.error(`無効な硬貨の値が検出されました: ${value}`);
+                return connection.rollback(() => res.status(400).json({ error: '無効な硬貨の値です' }));
+              }
+              casher[coin] = (casher[coin] || 0) + selectedMoney[value];
+            });
+
+            // お釣り処理
+            for (let i = 0; i < coins.length; i++) {
+              const coin = coins[i];
+              const neededChange = Math.floor(change / coin);
+
+              if (neededChange > 0) {
+                if (casher[coin] >= neededChange) {
+                  casher[coin] -= neededChange;
+                  changeArray.push({ coin, count: neededChange });
+                  change -= neededChange * coin;
                 }
               }
             }
-            console.log('Casher update before database update:', casherUpdate);
-            console.log('Remaining change after processing:', change);
-  
+
             if (change > 0) {
-              return connection.rollback(() => {
-                res.status(400).json({ error: 'Insufficient change in casher' });
-              });
+              return connection.rollback(() => res.status(400).json({ error: 'お釣りが足りません' }));
             }
-  
+
+            // お釣りをユーザーの所持金に反映
             changeArray.forEach((item) => {
-              userMoneyUpdate[`yen_${item.denom}`] += item.count;
+              userUpdate[item.coin] += item.count;
             });
-  
-            const casherUpdates = Object.keys(casherUpdate).map((denom) => {
+
+            // データベースの更新 (user_money)
+            const updateUserMoney = Object.keys(userUpdate).map((coinStr) => {
+              const coin = parseInt(coinStr);  // 数値に変換
+              if (isNaN(coin)) {
+                console.error(`無効な硬貨の値です: ${coinStr}`);
+                return Promise.reject(new Error(`無効な硬貨の値: ${coinStr}`));
+              }
               return new Promise((resolve, reject) => {
                 connection.query(
-                  'UPDATE Money SET quantity = ? WHERE value = ?',
-                  [casherUpdate[denom], denom],
-                  (updateErr, results) => {
-                    if (updateErr) {
-                      console.error('Failed to update casher money for denomination:', denom, updateErr);
-                      return reject(updateErr);
+                  'UPDATE user_money SET quantity = ? WHERE value = ?',
+                  [userUpdate[coin], coin],  // coin は数値である必要がある
+                  (err) => {
+                    if (err) {
+                      console.error(`ユーザーのお金の更新に失敗しました (値 ${coin}):`, err);
+                      return reject(err);
                     }
-                    // クエリが成功した場合のログを追加
-                    console.log('Updated casher money for denomination:', denom, 'with quantity:', casherUpdate[denom]);
-                    console.log('SQL affected rows:', results.affectedRows); // 影響を受けた行数を確認
                     resolve();
                   }
                 );
               });
             });
-            
-  
-            Promise.all(casherUpdates)
-              .then(() => {
-                connection.query('UPDATE user SET ? WHERE id = ?', [userMoneyUpdate, userId], (updateErr) => {
-                  if (updateErr) {
-                    return connection.rollback(() => {
-                      res.status(500).json({ error: 'Failed to update user money' });
-                    });
-                  }
-  
-                  connection.commit((commitErr) => {
-                    if (commitErr) {
-                      return connection.rollback(() => {
-                        res.status(500).json({ error: 'Failed to commit transaction' });
-                      });
+
+            const updateCasherMoney = Object.keys(casher).map((coinStr) => {
+              const coin = parseInt(coinStr);  // 数値に変換
+              if (isNaN(coin)) {
+                console.error(`無効な硬貨の値です: ${coin}`);
+                return reject(new Error(`無効な硬貨の値: ${coin}`));
+              }
+              return new Promise((resolve, reject) => {
+                connection.query(
+                  'UPDATE Money SET quantity = ? WHERE value = ?',
+                  [casher[coin], coin],
+                  (err) => {
+                    if (err) {
+                      console.error(`キャッシャーのお金の更新に失敗しました (値 ${coin}):`, err);
+                      return reject(err);
                     }
-                  
-                    // コミット後にデータベースの内容を再確認
-                    connection.query('SELECT * FROM Money', (checkErr, results) => {
-                      if (checkErr) {
-                        console.error('Failed to retrieve updated Money data:', checkErr);
-                      } else {
-                        console.log('Updated Money data after commit:', results);
-                      }
-                      res.json({ message: 'Purchase successful', change: changeArray });
-                    });
-                  });                  
+                    resolve();
+                  }
+                );
+              });
+            });
+            // 在庫の減少処理を追加
+            const updateStock = new Promise((resolve, reject) => {
+              connection.query(
+                'UPDATE drinks SET stock = stock - 1 WHERE id = ?',
+                [drinkId],
+                (err) => {
+                  if (err) {
+                    console.error(`在庫の更新に失敗しました (ID ${drinkId}):`, err);
+                    return reject(err);
+                  }
+                  resolve();
+                }
+              );
+            });
+            Promise.all([...updateUserMoney, ...updateCasherMoney])
+              .then(() => {
+                connection.commit((err) => {
+                  if (err) {
+                    console.error('コミットに失敗しました:', err);
+                    return connection.rollback(() => res.status(500).json({ error: 'コミットに失敗しました', details: err.message }));
+                  }
+                  res.json({ message: '購入に成功しました', change: changeArray });
                 });
               })
               .catch((err) => {
-                return connection.rollback(() => {
-                  console.error('Transaction rolled back due to insufficient change or another error');
-                  res.status(500).json({ error: 'Failed to update casher money' });
-                });
+                console.error('更新に失敗しました:', err);
+                connection.rollback(() => res.status(500).json({ error: '更新に失敗しました', details: err.message }));
               });
           });
         });
       });
     });
   });
-  
+
   app.post('/api/drinks/add', (req, res) => {
     console.log(req.body);  // リクエストボディをログに出力
     const { name, type, cost, stock } = req.body;
 
     connection.query('INSERT INTO drinks (name, type, cost, stock) VALUES (?, ?, ?, ?)', [name, type, cost, stock], (error, results) => {
       if (error) {
-        return res.status(500).json({ error: 'Failed to add drink' });
+        return res.status(500).json({ error: '飲み物の追加に失敗しました' });
       }
-      res.json({ message: 'Drink added successfully' });
+      res.json({ message: '飲み物が正常に追加されました' });
     });
   });
 
@@ -222,22 +244,23 @@ function startServer(connection) {
 
     connection.query('UPDATE drinks SET name = ?, type = ?, cost = ?, stock = ? WHERE id = ?', [name, type, cost, stock, id], (error, results) => {
       if (error) {
-        return res.status(500).json({ error: 'Failed to update drink' });
+        return res.status(500).json({ error: '飲み物の更新に失敗しました' });
       }
-      console.log(`Drink with ID ${id} updated. New values - Name: ${name}, Type: ${type}, Cost: ${cost}, Stock: ${stock}`);
-      res.json({ message: 'Drink updated successfully' });
+      console.log(`ID ${id}の飲み物を更新しました。新しい値 - 名前: ${name}, 種類: ${type}, 価格: ${cost}, 在庫: ${stock}`);
+      res.json({ message: '飲み物が正常に更新されました' });
     });
   });
 
   app.get('/api/money', (req, res) => {
     connection.query('SELECT * FROM Money', (error, results) => {
       if (error) {
-        res.status(500).json({ error: 'Database query failed' });
+        res.status(500).json({ error: 'データベースのクエリに失敗しました' });
       } else {
         res.json(results);
       }
     });
   });
+
   app.post('/api/money/edit/:id', (req, res) => {
     console.log(req.body);  // リクエストボディをログに出力
     const { id } = req.params;
@@ -245,54 +268,67 @@ function startServer(connection) {
 
     connection.query('UPDATE Money SET value = ?, quantity = ? WHERE id = ?', [value, quantity, id], (error, results) => {
       if (error) {
-        return res.status(500).json({ error: 'Failed to update money' });
+        return res.status(500).json({ error: 'お金の更新に失敗しました' });
       }
-      res.json({ message: 'Money updated successfully' });
+      res.json({ message: 'お金が正常に更新されました' });
     });
   });
 
-  app.get('/api/user', (req, res) => {
-    connection.query('SELECT `yen_10000`, `yen_5000`, `yen_1000`, `yen_500`, `yen_100`, `yen_50`, `yen_10`, `yen_5`, `yen_1` FROM user WHERE id = 1', 
-    (error, results) => {
+  app.get('/api/user_money', (req, res) => {
+    connection.query('SELECT * FROM user_money', (error, results) => {
       if (error) {
-        res.status(500).json({ error: 'Database query failed' });
+        res.status(500).json({ error: 'データベースのクエリに失敗しました' });
       } else {
-        res.json(results[0]);  
+        res.json(results);
       }
+    });
+  });
+
+  app.post('/api/user_money/edit/:id', (req, res) => {
+    console.log(req.body);  // リクエストボディをログに出力
+    const { id } = req.params;
+    const { value, quantity } = req.body;
+
+    connection.query('UPDATE user_money SET value = ?, quantity = ? WHERE id = ?', [value, quantity, id], (error, results) => {
+      if (error) {
+        return res.status(500).json({ error: 'ユーザーの所持金の更新に失敗しました' });
+      }
+      res.json({ message: 'ユーザーの所持金が正常に更新されました' });
     });
   });
 
   app.get('/healthcheck', (req, res) => {
     res.status(200).send('OK');
-  });  
-  
+  });
+
   app.listen(3001, () => {
-    console.log('API server is running on http://localhost:3001');
+    console.log('APIサーバーが http://localhost:3001 で稼働中です');
   });
 }
 
 function connectWithRetry() {
+  const mysql = require('mysql2');
   const connection = mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost', // ホスト名を指定
-    user: process.env.DB_USER || 'root',       // ユーザー名を指定
-    password: process.env.DB_PASSWORD || 'password',  // パスワードを指定
-    database: process.env.DB_NAME || 'vending_machine', // データベース名を指定
-    charset: 'utf8mb4'  // エンコーディングを指定
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    charset: 'utf8mb4'  // ここでUTF-8エンコーディングを指定
   });
 
   connection.connect((err) => {
     if (err) {
-      console.error('Failed to connect to MySQL, retrying in 5 seconds...', err);
+      console.error('MySQLへの接続に失敗しました。5秒後に再試行します...', err);
       setTimeout(connectWithRetry, 5000);
     } else {
-      console.log('Connected to MySQL');
+      console.log('MySQLに接続しました');
       startServer(connection);
       serverStarted = true;  // サーバーが起動したことを記録
     }
   });
 
   connection.on('error', (err) => {
-    console.error('MySQL connection error:', err);
+    console.error('MySQL接続エラー:', err);
     if (err.code === 'PROTOCOL_CONNECTION_LOST') {
       connectWithRetry();
     } else {
@@ -302,7 +338,3 @@ function connectWithRetry() {
 }
 
 connectWithRetry();
-
-
-
-
