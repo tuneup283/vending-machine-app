@@ -5,6 +5,7 @@ let originalDrinkData = {};
 
 // DBの状態を取得する関数
 async function getOriginalData(drinkId) {
+  console.log('Original drink data:', originalDrinkData);
   try {
     // ユーザーの所持金を取得
     const userResponse = await fetch('http://localhost:3001/api/user_money', { method: 'GET' });
@@ -39,24 +40,37 @@ async function setTestMoney(moneyObject, endpoint) {
   }
 }
 // 飲み物データを設定する関数
-async function setTestDrinkData(drinkId, name, type, cost, stock) {
+async function setTestDrinkData(drinkId, cost, stock) {
+  if (!originalDrinkData) {
+    console.error('originalDrinkData が設定されていません');
+    return;
+  }
+
   await fetch(`http://localhost:3001/api/drinks/edit/${drinkId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, type, cost, stock }),
+    body: JSON.stringify({
+      name: originalDrinkData.name, // 元のデータを使用
+      type: originalDrinkData.type, // 元のデータを使用
+      cost: cost,
+      stock: stock,
+    }),
   });
 }
+
 
 // DBの状態を復元する関数
 async function restoreOriginalData(drinkId) {
   try {
+    if (!originalDrinkData) {
+      throw new Error('originalDrinkData が未設定です');
+    }
+
     // ユーザーの所持金を復元
     for (let money of originalUserMoney) {
       await fetch(`http://localhost:3001/api/user_money/edit/${money.id}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ value: money.value, quantity: money.quantity }),
       });
     }
@@ -65,9 +79,7 @@ async function restoreOriginalData(drinkId) {
     for (let money of originalCasherMoney) {
       await fetch(`http://localhost:3001/api/money/edit/${money.id}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ value: money.value, quantity: money.quantity }),
       });
     }
@@ -75,9 +87,7 @@ async function restoreOriginalData(drinkId) {
     // 飲み物データを復元
     await fetch(`http://localhost:3001/api/drinks/edit/${drinkId}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: originalDrinkData.name,
         type: originalDrinkData.type,
@@ -92,9 +102,18 @@ async function restoreOriginalData(drinkId) {
   }
 }
 
+
 // APIテストを行うbuy関数を定義
 async function buy(drinkId, productCost, stock, payment, userMoney, casherMoney) {
   try {
+    // 元データを取得
+    await getOriginalData(drinkId);
+
+    if (!originalDrinkData) {
+      throw new Error('originalDrinkData が取得できませんでした');
+    }
+    console.log('Original drink data:', originalDrinkData);
+
     // ユーザーの所持金を設定
     if (userMoney) {
       console.log('ユーザーの所持金を設定中:', userMoney);
@@ -110,7 +129,7 @@ async function buy(drinkId, productCost, stock, payment, userMoney, casherMoney)
     // 飲み物データを設定
     if (productCost !== undefined && stock !== undefined) {
       console.log('テスト用飲み物データを設定中:', { drinkId, productCost, stock });
-      await setTestDrinkData(drinkId, originalDrinkData.name, originalDrinkData.type, productCost, stock);
+      await setTestDrinkData(drinkId, productCost, stock);
     }
 
     // テストデータ
@@ -154,6 +173,8 @@ async function buy(drinkId, productCost, stock, payment, userMoney, casherMoney)
     }
   }
 }
+
+
 
 
 buy(2,150,10,{"1":150,"5":0,"10":0,"50":0,"100":0,"500":0,"1000":0,"5000":0,"10000":0},{"1":150,"5":10,"10":10,"50":10,"100":10,"500":10,"1000":10,"5000":10,"10000":10},{"1":10,"5":10,"10":10,"50":10,"100":10,"500":10,"1000":10,"5000":10,"10000":10})

@@ -46,7 +46,17 @@
           <tbody>
             <tr v-for="(value, key) in selectedMoney" :key="key">
               <td>¥{{ key }}</td>
-              <td><input type="number" v-model.number="selectedMoney[key]" min="0" :max="getMaxQuantity(key)" /></td>
+              <td>
+                <input
+                  type="number"
+                  v-model.number="selectedMoney[key]"
+                  min="0"
+                  :max="getMaxQuantity(key)"
+                  :class="{ 'error-input': selectedMoneyError[key] }"
+                  :title="selectedMoneyError[key] ? '所持金を超えています' : ''"
+                  @input="validateInput(key)"
+                />
+              </td>
             </tr>
           </tbody>
         </table>
@@ -78,9 +88,6 @@
 import { defineComponent, ref, computed, onMounted } from '@nuxtjs/composition-api';
 import axios from 'axios';
 import DrinkList from '../components/DrinkList.vue';
-import UserMoney from '../components/UserMoney.vue';
-import SelectedMoney from '../components/SelectedMoney.vue';
-import CasherMoney from '../components/CasherMoney.vue';
 
 interface Drink {
   id: number;
@@ -95,13 +102,9 @@ interface Money {
   quantity: number;
 }
 
-
-export default {
+export default defineComponent({
   components: {
     DrinkList,
-    UserMoney,
-    SelectedMoney,
-    CasherMoney,
   },
   setup() {
     const drinks = ref<Drink[]>([]);
@@ -118,6 +121,17 @@ export default {
       5: 0,
       1: 0,
     });
+    const selectedMoneyError = ref<Record<number, boolean>>({
+      10000: false,
+      5000: false,
+      1000: false,
+      500: false,
+      100: false,
+      50: false,
+      10: false,
+      5: false,
+      1: false,
+    });
 
     const totalCasherMoney = computed(() =>
       casherMoney.value.reduce((total, money) => total + money.value * money.quantity, 0)
@@ -125,8 +139,26 @@ export default {
     const totalUserMoney = computed(() =>
       userMoney.value.reduce((total, money) => total + money.value * money.quantity, 0)
     );
-    const getMaxQuantity = (key: number) =>
-      userMoney.value.find((money) => money.value === key)?.quantity || 0;
+
+    const validateInput = (key: number) => {
+      const maxQuantity = getMaxQuantity(key);
+
+      if (maxQuantity === 0 || selectedMoney.value[key] <= maxQuantity) {
+        selectedMoneyError.value[key] = false;
+      } else {
+        selectedMoneyError.value[key] = true;
+      }
+
+      console.log(
+        `validateInput: key=${key}, selected=${selectedMoney.value[key]}, max=${maxQuantity}, error=${selectedMoneyError.value[key]}`
+      );
+    };
+
+    const getMaxQuantity = (key: number) => {
+      const normalizedKey = Number(key); // 数値型を保証
+      const money = userMoney.value.find((money) => money.value === normalizedKey);
+      return money ? money.quantity : 0; // 見つからない場合は 0 を返す
+    };
 
     const fetchData = async () => {
       try {
@@ -135,11 +167,12 @@ export default {
           axios.get('http://localhost:3001/api/money', { withCredentials: true }),
           axios.get('http://localhost:3001/api/user_money', { withCredentials: true }),
         ]);
+        console.log('userMoney API response:', userResponse.data); // デバッグ用ログ
         drinks.value = drinksResponse.data;
         casherMoney.value = casherResponse.data;
         userMoney.value = userResponse.data;
       } catch (error) {
-        console.error('データの取得に失敗しました:', error);
+        console.error('fetchData error:', error);
       }
     };
 
@@ -148,7 +181,6 @@ export default {
         const response = await axios.post(
           'http://localhost:3001/api/purchase',
           {
-            userId: 1,
             drinkId: drink.id,
             selectedMoney: selectedMoney.value,
           },
@@ -169,13 +201,15 @@ export default {
       userMoney,
       casherMoney,
       selectedMoney,
+      selectedMoneyError,
       totalUserMoney,
       totalCasherMoney,
       handlePurchase,
       getMaxQuantity,
+      validateInput,
     };
   },
-};
+});
 </script>
 
 <style scoped>
@@ -215,7 +249,13 @@ button {
 .money-table th {
   background-color: #f2f2f2;
 }
-.items-column>div{
+
+.items-column > div {
   width: 15%;
+}
+
+::v-deep(.error-input) {
+  border: 2px solid red;
+  background-color: #ffe6e6;
 }
 </style>

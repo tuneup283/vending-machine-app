@@ -31,19 +31,17 @@ async function insertEntity(connection, tableName, columns, values, res, success
 async function updateEntity(connection, tableName, columns, values, id, res, successMessage, errorMessage) {
   const setClause = columns.map(col => `${col} = ?`).join(', ');
   const query = `UPDATE ${tableName} SET ${setClause} WHERE id = ?`;
+  console.log('Executing query:', query, 'with values:', [...values, id]); // デバッグログ
   try {
-    await connection.execute(query, [...values, id]);
+    const [result] = await connection.execute(query, [...values, id]);
+    console.log('Query result:', result); // 実行結果をログに出力
     res.json({ message: successMessage });
   } catch (error) {
+    console.error('Query failed:', error.message); // エラーメッセージを出力
     res.status(500).json({ error: errorMessage, details: error.message });
   }
 }
-//エラー発生時にエラーを出力する
-function handleRollback(connection, res, errorMessage, errorDetails) {
-  return connection.rollback().then(() => {
-    res.status(400).json({ error: errorMessage, details: errorDetails });
-  });
-}
+
 //DBのデータを複数行更新する
 function updateDatabase(connection, tableName, updates) {
   const promises = updates.map(({ value, quantity }) =>
@@ -166,8 +164,7 @@ async function startServer() {
       function convertUpdateData(obj) {
         return Object.entries(obj).map(([value, quantity]) => ({ value, quantity }));
       }
-
-      // 変換処理を簡素化した呼び出し例
+      
       await updateDatabase(connection, 'user_money', convertUpdateData(userUpdate));
       await updateDatabase(connection, 'Money', convertUpdateData(casherMap));
 
@@ -198,9 +195,18 @@ async function startServer() {
 
   // ドリンク編集
   app.post('/api/drinks/edit/:id', async (req, res) => {
-    console.log(req.body);
     const { id } = req.params;
     const { name, type, cost, stock } = req.body;
+  
+    // 必須フィールドのバリデーション
+    if (!name || !type || cost == null || stock == null) {
+      return res.status(400).json({ error: '必要なデータが不足しています' });
+    }
+  
+    if (!['cold', 'hot'].includes(type)) {
+      return res.status(400).json({ error: 'typeの値が不正です' });
+    }
+  
     await updateEntity(
       connection,
       'drinks',
@@ -212,6 +218,7 @@ async function startServer() {
       '飲み物の更新に失敗しました'
     );
   });
+  
 
   // Money一覧取得
   app.get('/api/money', (req, res) => {
